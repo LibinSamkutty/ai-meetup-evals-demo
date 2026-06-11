@@ -1,0 +1,35 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment
+.env
+
+# Credentials — NEVER commit
+credentials/
+*.json.key
+service_account*.json
+client_secrets.json
+
+# Generated data — recreated on first run
+data/chroma_db/
+data/eval_results.db
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/secrets.toml
