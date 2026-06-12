@@ -43,7 +43,7 @@ if [ ! -f ".env" ]; then
         cp .env.example .env
         echo ""
         echo "⚠  Created .env from .env.example"
-        echo "   Edit .env and fill in GCP_PROJECT_ID and GOOGLE_APPLICATION_CREDENTIALS"
+        echo "   Edit .env and fill in OPENAI_API_KEY"
         echo "   before running in Live Mode."
         echo ""
     fi
@@ -51,24 +51,24 @@ else
     echo "✓ .env exists"
 fi
 
-# Validate GCP config if set
-if grep -q "^GCP_PROJECT_ID=your-gcp-project-id$" .env 2>/dev/null || ! grep -q "^GCP_PROJECT_ID=" .env 2>/dev/null; then
-    echo "⚠  GCP_PROJECT_ID not configured — app will start in Demo Mode"
+# Validate OpenAI config if set
+if grep -q "^OPENAI_API_KEY=your-openai-api-key$" .env 2>/dev/null || ! grep -q "^OPENAI_API_KEY=." .env 2>/dev/null; then
+    echo "⚠  OPENAI_API_KEY not configured — app will start in Demo Mode"
 else
-    echo "  Testing Vertex AI connection..."
+    echo "  Testing OpenAI connection..."
     if $PYTHON -c "
 from dotenv import load_dotenv
 load_dotenv()
 import models
 try:
-    models.init_vertex()
+    models.init_openai()
     print('ok')
 except Exception as e:
     print(f'fail: {e}')
 " 2>/dev/null | grep -q "^ok$"; then
-        echo "✓ Vertex AI connected"
+        echo "✓ OpenAI connected"
     else
-        echo "⚠  Vertex AI not reachable — check credentials. App will start in Demo Mode."
+        echo "⚠  OpenAI not reachable — check credentials. App will start in Demo Mode."
     fi
 fi
 

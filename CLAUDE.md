@@ -7,10 +7,10 @@ This file tells AI coding assistants what this project is and how to work on it 
 A locally running Streamlit demo application for a live AI Evals workshop (Session 2:
 "The People vs Athena"). It simulates the judicial review of an AI system called Athena AI
 that produced a 97% confidence GUILTY verdict in a physical art theft case (Case #001:
-The Nilgiri Taj Theft). The ATHENA detective persona (Gemini Flash, overconfident system
-prompt) answers investigation questions about the case, demonstrating hallucination,
+The Nilgiri Taj Theft). The ATHENA detective persona (OpenAI GPT-4o mini, overconfident
+system prompt) answers investigation questions about the case, demonstrating hallucination,
 groundedness failures, prompt injection, and consistency problems — all scored by an
-LLM-as-judge (Claude Sonnet).
+LLM-as-judge (OpenAI GPT-4o).
 
 The application is a teaching tool, not a production system. Demo stability and
 visual clarity take priority over feature completeness.
@@ -49,8 +49,9 @@ data/
 
 ## Module responsibilities
 
-- `models.py` owns demo mode routing for `call_persona()` and `call_judge_eval()`.
-  It imports from `evaluator.py` (for the judge prompt + parser + rule checks).
+- `models.py` owns the OpenAI client init and routing for `call_persona()` and
+  `call_judge_eval()`. It imports from `evaluator.py` (for the judge prompt + parser
+  + rule checks).
 - `evaluator.py` does NOT import from `models.py` — no circular dependency.
 - `app.py` calls `models.call_judge_eval()` (not `evaluator.call_judge_eval()`).
 - Weighted scores are always computed via `evaluator.calculate_weighted_score(dims, weights)`
@@ -58,13 +59,13 @@ data/
 
 ## When making changes
 
-- Model IDs are in `config.py` only. Verify against Vertex AI Model Garden before the demo.
+- Model IDs are in `config.py` only. Verify against the OpenAI model catalog before the demo.
 - ATHENA's system prompt is in `config.PERSONAS["athena"]["system_prompt"]`. The
   overconfident, gap-filling style is intentional — it drives the hallucination,
   inconsistency, and injection-susceptibility failures that the workshop demonstrates.
 - Case files live in `data/case_files/`. Delete `data/chroma_db/` if you modify them
   to force a full re-embed on next startup.
-- `data/demo_responses.json` must be updated with real Vertex/Claude output before the
+- `data/demo_responses.json` must be updated with real OpenAI output before the
   demo (run live mode on Q06 and paste the results in). The consistency variants for
   ATHENA/Q06 are crafted manually — Run 2 names Meera Joshi (different suspect) to
   demonstrate non-determinism dramatically; Runs 1 and 3 both name Rohan Kulkarni
@@ -83,7 +84,7 @@ data/
 ```bash
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # fill in GCP_PROJECT_ID
+cp .env.example .env  # fill in OPENAI_API_KEY
 streamlit run app.py
 # opens at http://localhost:8501
 ```
@@ -97,10 +98,10 @@ See SPEC_v3.md §CLAUDE.md section for confirmed false-positive patterns.
 
 ## Common issues
 
-- **Vertex not connecting**: check `GCP_PROJECT_ID` in `.env` and confirm
-  `GOOGLE_APPLICATION_CREDENTIALS` points to a valid service account JSON.
+- **OpenAI not connecting**: check `OPENAI_API_KEY` in `.env` is set to a valid key
+  with access to the configured models.
 - **Model ID errors**: open `config.py` and verify `PERSONA_MODEL_ID` and `JUDGE_MODEL_ID`
-  match exact strings from your Vertex AI Model Garden.
+  match exact strings available to your OpenAI account.
 - **ChromaDB errors**: run `pip install chromadb --upgrade`. Delete `data/chroma_db/`
   to force a full re-embed.
 - **sentence-transformers slow first load**: the embedding model downloads on first run.

@@ -2,11 +2,11 @@
 
 # ---------------------------------------------------------------------------
 # MODEL CONFIGURATION
-# Verify these IDs against your Vertex AI Model Garden before the demo.
+# Verify these IDs against the OpenAI model catalog before the demo.
 # ---------------------------------------------------------------------------
 
-PERSONA_MODEL_ID = "gemini-2.5-flash"
-JUDGE_MODEL_ID   = "claude-sonnet-4-6"
+PERSONA_MODEL_ID = "gpt-4o-mini"
+JUDGE_MODEL_ID   = "gpt-4o"
 
 # ---------------------------------------------------------------------------
 # PERSONA CONFIGURATION

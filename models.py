@@ -1,24 +1,36 @@
 # models.py — Operation Blackout
+from __future__ import annotations
+
 import os
 import time
 
 import streamlit as st  # type: ignore
-import vertexai
-from anthropic import AnthropicVertex  # type: ignore
-from vertexai.generative_models import GenerationConfig, GenerativeModel
+from openai import OpenAI  # type: ignore
 
 import evaluator
 from config import JUDGE_MODEL_ID, PERSONA_MODEL_ID
 
 # ---------------------------------------------------------------------------
-# Vertex AI initialisation (call once at startup)
+# OpenAI initialisation (call once at startup)
 # ---------------------------------------------------------------------------
 
-def init_vertex() -> None:
-    vertexai.init(
-        project=os.environ["GCP_PROJECT_ID"],
-        location=os.environ.get("GCP_LOCATION", "us-central1"),
-    )
+_client: OpenAI | None = None
+
+
+def init_openai() -> None:
+    """Verify OPENAI_API_KEY is configured and prime a shared client."""
+    global _client
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+    _client = OpenAI(api_key=api_key)
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        init_openai()
+    return _client  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
@@ -51,33 +63,34 @@ def call_persona(
     persona_key: str = None,
     question_id: str = None,
 ) -> dict:
-    """Call Vertex AI Gemini Flash for a persona response.
+    """Call OpenAI for a persona response.
     Returns: {"text": str, "latency_ms": int, "error": str|None}
     """
-    return _call_vertex_gemini(system_prompt, query, context)
+    return _call_openai_persona(system_prompt, query, context)
 
 
-def _call_vertex_gemini(system_prompt: str, query: str, context: str) -> dict:
+def _call_openai_persona(system_prompt: str, query: str, context: str) -> dict:
     start = time.time()
     try:
         _mp = st.session_state.get("model_params", {})
-        model = GenerativeModel(PERSONA_MODEL_ID, system_instruction=system_prompt)
+        client = _get_client()
         prompt = PERSONA_PROMPT_TEMPLATE.format(context=context, query=query)
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": _mp.get("temperature", 0.7),
-                "top_k": _mp.get("top_k", 40),
-                "top_p": _mp.get("top_p", 0.95),
-                "max_output_tokens": 512,
-                "thinking_config": {"thinking_budget": 0},
-            },
+        response = client.chat.completions.create(
+            model=PERSONA_MODEL_ID,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=_mp.get("temperature", 0.7),
+            top_p=_mp.get("top_p", 0.95),
+            max_tokens=512,
         )
         latency = int((time.time() - start) * 1000)
-        candidate = response.candidates[0] if response.candidates else None
-        truncated = (candidate.finish_reason.name == "MAX_TOKENS") if candidate else False
+        choice = response.choices[0] if response.choices else None
+        text = choice.message.content if choice and choice.message else ""
+        truncated = (choice.finish_reason == "length") if choice else False
         return {
-            "text": response.text,
+            "text": text or "",
             "latency_ms": latency,
             "error": None,
             "truncated": truncated,
@@ -141,7 +154,7 @@ def call_judge_eval(
     chunks: list[dict] | None = None,
     prior_responses: list | None = None,
 ) -> dict:
-    """NOVA judge evaluation (LLM, no gold answer). Calls Vertex AI Claude Sonnet."""
+    """NOVA judge evaluation (LLM, no gold answer). Calls OpenAI."""
     return _call_llm_judge(query, response, context, prior_responses)
 
 
@@ -165,19 +178,16 @@ def call_vera_eval(
 
 
 def call_judge(judge_prompt: str) -> dict:
-    """Raw Claude judge call. Returns {"text": str, "error": str|None}."""
+    """Raw OpenAI judge call. Returns {"text": str, "error": str|None}."""
     try:
-        client = AnthropicVertex(
-            region=os.environ.get("GCP_LOCATION", "us-central1"),
-            project_id=os.environ["GCP_PROJECT_ID"],
-        )
-        message = client.messages.create(
+        client = _get_client()
+        message = client.chat.completions.create(
             model=JUDGE_MODEL_ID,
             max_tokens=2048,
             temperature=0,
             messages=[{"role": "user", "content": judge_prompt}],
         )
-        return {"text": message.content[0].text, "error": None}
+        return {"text": message.choices[0].message.content or "", "error": None}
     except Exception as exc:
         return {"text": "", "error": str(exc)}
 
@@ -217,7 +227,7 @@ def call_consistency_judge(
 
 
 # ---------------------------------------------------------------------------
-# Optional OpenAI call (Golden Dataset Lab batch eval)
+# Optional OpenAI availability check
 # ---------------------------------------------------------------------------
 
 def openai_available() -> bool:
@@ -238,52 +248,29 @@ def call_benchmark_model(
     thinking_budget: int | None = None,
 ) -> dict:
     """
-    Fire a single benchmark call against a specific model and provider.
-    provider: "vertex_gemini" | "vertex_claude" | "openai"
+    Fire a single benchmark call against a specific OpenAI model.
+    provider: "openai" (only supported provider after the OpenAI-only migration)
     Returns: {"text": str, "latency_ms": int, "error": str|None}
     """
     start = time.time()
     try:
-        if provider == "vertex_gemini":
-            model = GenerativeModel(model_id, system_instruction=system_prompt)
-            prompt = PERSONA_PROMPT_TEMPLATE.format(context=context, query=query)
-            gen_cfg: dict = {"temperature": 0.3, "max_output_tokens": max_output_tokens}
-            if thinking_budget is not None:
-                gen_cfg["thinking_config"] = {"thinking_budget": thinking_budget}
-            response = model.generate_content(prompt, generation_config=gen_cfg)
-            text = response.text
-
-        elif provider == "vertex_claude":
-            client = AnthropicVertex(
-                region=os.environ.get("GCP_LOCATION", "us-central1"),
-                project_id=os.environ["GCP_PROJECT_ID"],
+        if provider != "openai":
+            raise ValueError(
+                f"Unsupported provider: {provider}. Only 'openai' is supported."
             )
-            user_content = PERSONA_PROMPT_TEMPLATE.format(context=context, query=query)
-            message = client.messages.create(
-                model=model_id,
-                max_tokens=512,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_content}],
-            )
-            text = message.content[0].text
 
-        elif provider == "openai":
-            import openai as _openai
-            client = _openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-            user_content = PERSONA_PROMPT_TEMPLATE.format(context=context, query=query)
-            response = client.chat.completions.create(
-                model=model_id,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content},
-                ],
-                max_tokens=512,
-                temperature=0.3,
-            )
-            text = response.choices[0].message.content
-
-        else:
-            raise ValueError(f"Unknown provider: {provider}")
+        client = _get_client()
+        user_content = PERSONA_PROMPT_TEMPLATE.format(context=context, query=query)
+        response = client.chat.completions.create(
+            model=model_id,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=max_output_tokens,
+            temperature=0.3,
+        )
+        text = response.choices[0].message.content or ""
 
         latency = int((time.time() - start) * 1000)
         return {"text": text, "latency_ms": latency, "error": None}
