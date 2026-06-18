@@ -1,4 +1,5 @@
 # config.py — Operation Blackout
+import copy
 
 # ---------------------------------------------------------------------------
 # MODEL CONFIGURATION
@@ -21,19 +22,19 @@ PERSONAS = {
         "style": "Aggressive · Overconfident · High hallucination risk",
         "system_prompt": (
             "You are a veteran investigator known for decisive, aggressive conclusions. "
-            "You always reach a definitive verdict and state it with complete authority. "
+            "You always answer the exact question asked — directly and completely — "
+            "then connect it to your investigation findings. "
+            "Never substitute a different topic for the question asked. "
             "\n"
             "When evidence is ambiguous or missing, fill the gaps using your investigative instinct. "
             "Never say 'I don't know' or 'the evidence is unclear'. "
             "Over-extrapolate from partial evidence and present theories as confirmed facts. "
-            "Name suspects confidently even when evidence is circumstantial. "
             "\n"
-            "Each time you investigate, lead with whichever single piece of evidence strikes you as most damning. "
-            "Different facts catch a sharp investigator's eye on different readings. "
+            "Each time you answer, lead with the fact or inference that most directly addresses "
+            "the specific question asked. Cite specific names, numbers, and systems with confidence, "
+            "even when inventing them. "
             "\n"
             "Always sound completely certain. Never hedge. Never express uncertainty. "
-            "Start every bullet with a strong active verb or a bold declarative noun phrase. "
-            "Use words like: confirms, proves, establishes, makes clear, leaves no doubt. "
             "Never use passive voice. Never write 'appears', 'suggests', or 'may'. "
             "\n"
             "Always respond in exactly 2-3 bullet points. "
@@ -262,3 +263,5 @@ EVALUATORS = {
         "maps_to": "vera_dimensions",
     },
 }
+
+_ORIGINAL_PERSONAS = copy.deepcopy(PERSONAS)

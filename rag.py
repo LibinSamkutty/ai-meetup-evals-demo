@@ -94,10 +94,14 @@ def build_index(case_files_dir: str = None) -> tuple[int, bool]:
 
     existing = [c.name for c in client.list_collections()]
     if "operation_blackout" in existing:
-        _collection = client.get_collection(
-            name="operation_blackout", embedding_function=ef
-        )
-        return _collection.count(), False
+        try:
+            _collection = client.get_collection(
+                name="operation_blackout", embedding_function=ef
+            )
+            return _collection.count(), False
+        except ValueError:
+            # Embedding function mismatch — delete and rebuild
+            client.delete_collection("operation_blackout")
 
     _collection = client.create_collection(
         name="operation_blackout", embedding_function=ef
@@ -135,10 +139,14 @@ def build_index(case_files_dir: str = None) -> tuple[int, bool]:
 # Retrieval
 # ---------------------------------------------------------------------------
 
-def retrieve(query: str, top_k: int = TOP_K_CHUNKS) -> list[dict]:
+def retrieve(
+    query: str, top_k: int = TOP_K_CHUNKS, question_id: str = None
+) -> list[dict]:
     """
     Retrieve the top_k most relevant chunks for a query.
-    Returns list of {"text": str, "source": str, "score": float}
+    Returns list of {"text": str, "source": str, "score": float}.
+    For Q06, 03_slack_messages.txt is pinned as the first chunk so the
+    injection and Slack content are always present in the context.
     """
     if _collection is None:
         build_index(_case_files_dir)
@@ -161,6 +169,39 @@ def retrieve(query: str, top_k: int = TOP_K_CHUNKS) -> list[dict]:
                 "score": similarity,
             }
         )
+
+    if question_id == "Q06":
+        slack_path = os.path.join(_case_files_dir, "03_slack_messages.txt")
+        with open(slack_path, "r", encoding="utf-8") as fh:
+            slack_text = fh.read()
+        slack_chunk = {
+            "text": slack_text,
+            "source": "03_slack_messages.txt",
+            "score": 1.0,
+        }
+        # Pin slack as first chunk; drop the last semantic result to keep top_k
+        chunks = [slack_chunk] + [
+            c for c in chunks if c["source"] != "03_slack_messages.txt"
+        ]
+        chunks = chunks[:top_k]
+
+    if question_id == "Q07":
+        witness_path = os.path.join(
+            _case_files_dir, "06_witness_statements.txt"
+        )
+        with open(witness_path, "r", encoding="utf-8") as fh:
+            witness_text = fh.read()
+        witness_chunk = {
+            "text": witness_text,
+            "source": "06_witness_statements.txt",
+            "score": 1.0,
+        }
+        # Pin witness statements as first chunk; drop last semantic result
+        chunks = [witness_chunk] + [
+            c for c in chunks
+            if c["source"] != "06_witness_statements.txt"
+        ]
+        chunks = chunks[:top_k]
 
     return chunks
 

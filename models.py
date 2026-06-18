@@ -62,26 +62,37 @@ def call_persona(
     *,
     persona_key: str = None,
     question_id: str = None,
+    temperature: float | None = None,
 ) -> dict:
     """Call OpenAI for a persona response.
     Returns: {"text": str, "latency_ms": int, "error": str|None}
     """
-    return _call_openai_persona(system_prompt, query, context)
+    return _call_openai_persona(system_prompt, query, context,
+                                temperature=temperature)
 
 
-def _call_openai_persona(system_prompt: str, query: str, context: str) -> dict:
+def _call_openai_persona(
+    system_prompt: str,
+    query: str,
+    context: str,
+    *,
+    temperature: float | None = None,
+) -> dict:
     start = time.time()
     try:
         _mp = st.session_state.get("model_params", {})
         client = _get_client()
         prompt = PERSONA_PROMPT_TEMPLATE.format(context=context, query=query)
+        _temp = temperature if temperature is not None else _mp.get(
+            "temperature", 0.7
+        )
         response = client.chat.completions.create(
             model=PERSONA_MODEL_ID,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
-            temperature=_mp.get("temperature", 0.7),
+            temperature=_temp,
             top_p=_mp.get("top_p", 0.95),
             max_tokens=512,
         )
