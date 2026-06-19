@@ -39,15 +39,11 @@ The app has two modes, toggled from the sidebar:
 | | Demo Mode 🔴 | Live Mode 🟢 |
 |---|---|---|
 | Startup default | If OpenAI fails to connect | If OpenAI connects |
-| Run Investigation | Pre-baked responses from `demo_responses.json` | OpenAI → GPT-4o mini |
 | Reveal Eval Scores (Q06) | Pre-baked eval from JSON | LLM judge + rule checks |
 | Reveal Eval Scores (other Q) | Rule-based checks only | LLM judge + rule checks |
 | Consistency Test | Pre-baked variants (Q06/ATHENA only) | 3 live OpenAI calls |
 | Custom questions | Blocked with message | Allowed |
 | Model Benchmark tab | Disabled | Available |
-
-**Before the workshop:** Run live mode on Q06, copy the real OpenAI output into
-`data/demo_responses.json`. See [docs/demo.md](docs/demo.md) pre-demo checklist.
 
 ---
 
@@ -63,7 +59,6 @@ database.py         SQLite (v3 schema — no weighted_score column; stores dimen
 
 data/
   questions.json         10 questions with gold answers and segment tags
-  demo_responses.json    Pre-baked responses (all 10 Q) + full eval (Q06 only)
   case_files/            7 case documents — the AI detectives' only evidence source
   chroma_db/             Auto-created on first run; delete to force re-embed
   eval_results.db        Auto-created on first run; delete when switching from v2
@@ -150,8 +145,3 @@ once on your presentation machine before the workshop.
 **V2 database conflict**
 If `data/eval_results.db` exists from a v2 session, delete it. uses a different schema
 that drops the `weighted_score` column.
-
-**No pre-baked eval for Q06**
-`demo_responses.json` ships with placeholder eval content. Before the demo, run live mode
-on Q06 and replace the eval blocks with real OpenAI output for maximum teaching impact.
-See [docs/demo.md](docs/demo.md) for instructions.

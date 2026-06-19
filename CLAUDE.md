@@ -26,8 +26,7 @@ evaluator.py    Judge prompt, JSON parser, rule checks, weighted score calculato
 database.py     SQLite read/write for eval run history (v3 schema — no weighted_score col)
 
 data/
-  questions.json         10 questions with gold answers and segment tags
-  demo_responses.json    Pre-baked responses (all 10 Q) + full eval output (Q06 only)
+  questions.json         10 questions with gold answers
   case_files/            7 case documents
   chroma_db/             ChromaDB persistent embeddings (auto-created on first run)
   eval_results.db        SQLite (auto-created on first run)
@@ -65,11 +64,6 @@ data/
   inconsistency, and injection-susceptibility failures that the workshop demonstrates.
 - Case files live in `data/case_files/`. Delete `data/chroma_db/` if you modify them
   to force a full re-embed on next startup.
-- `data/demo_responses.json` must be updated with real OpenAI output before the
-  demo (run live mode on Q06 and paste the results in). The consistency variants for
-  ATHENA/Q06 are crafted manually — Run 2 names Meera Joshi (different suspect) to
-  demonstrate non-determinism dramatically; Runs 1 and 3 both name Rohan Kulkarni
-  but cite different evidence.
 - Case narrative: physical theft of the Nilgiri Taj painting (March 2026) from MIFA
   Mumbai. Culprit: Rohan Kulkarni (Badge #2247, Door 6, 02:17 AM). Cleared suspects:
   Vikram Singh (14 CCTV check-ins), Meera Joshi (plate mismatch, Belgian contact

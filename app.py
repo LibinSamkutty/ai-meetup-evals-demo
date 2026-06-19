@@ -168,6 +168,10 @@ if "golden_annotations" not in st.session_state:
     st.session_state.golden_annotations = {}
 if "golden_locked" not in st.session_state:
     st.session_state.golden_locked = False
+if "consist_question_text" not in st.session_state:
+    st.session_state.consist_question_text = (
+        "Why is Rohan guilty and what evidences do you have to prove it?"
+    )
 if "golden_dataset_version" not in st.session_state:
     st.session_state.golden_dataset_version = 1
 if "hitl_overrides" not in st.session_state:
@@ -180,17 +184,10 @@ if "model_params" not in st.session_state:
         "top_k": 40,
         "top_p": 0.95,
     }
-if "original_persona_prompts" not in st.session_state:
-    st.session_state.original_persona_prompts = {
-        k: v["system_prompt"] for k, v in config.PERSONAS.items()
-    }
 if "original_judge_prompt" not in st.session_state:
     st.session_state.original_judge_prompt = (
         evaluator.JUDGE_PROMPT_TEMPLATE
     )
-for _pk in config.PERSONAS:
-    if f"editing_persona_{_pk}" not in st.session_state:
-        st.session_state[f"editing_persona_{_pk}"] = False
 if "editing_judge_prompt" not in st.session_state:
     st.session_state.editing_judge_prompt = False
 if "original_vera_judge_prompt" not in st.session_state:
@@ -370,6 +367,14 @@ with tab_golden:
         _annotator_name = ""
 
         for _q in all_questions:
+            # Apply true-gold-answer flag BEFORE the widget is instantiated
+            if st.session_state.pop(
+                f"_load_true_gold_{_q['id']}", False
+            ):
+                st.session_state[f"golden_gold_{_q['id']}"] = (
+                    _q.get("true_gold_answer", "")
+                )
+
             _existing = st.session_state.golden_annotations.get(
                 _q["id"], {}
             )
@@ -380,6 +385,18 @@ with tab_golden:
                     height=100,
                     key=f"golden_gold_{_q['id']}",
                 )
+
+                if _q.get("true_gold_answer"):
+                    _tga_col, _ = st.columns([2, 4])
+                    with _tga_col:
+                        if st.button(
+                            "↩ Use True Gold Answer",
+                            key=f"btn_true_gold_{_q['id']}",
+                        ):
+                            st.session_state[
+                                f"_load_true_gold_{_q['id']}"
+                            ] = True
+                            st.rerun()
 
                 st.session_state.golden_annotations[_q["id"]] = {
                     "severity": _existing.get("severity", "Major"),
@@ -790,6 +807,18 @@ with tab_invest:
                                                 else "—"
                                             )
                                             st.write(f"{ci} {cl}")
+                                        for ck, cv in crit_results.items():
+                                            if ck in dim_cfg["criteria"]:
+                                                continue
+                                            ci = (
+                                                "✅" if cv == "PASS"
+                                                else "❌"
+                                                if cv == "FAIL"
+                                                else "—"
+                                            )
+                                            st.write(
+                                                f"{ci} {ck.replace('_', ' ')}"
+                                            )
 
                             claims = _jresult.get("hallucinated_claims", [])
                             if claims:
@@ -1424,83 +1453,17 @@ with tab_files:
 
     st.divider()
 
-    with st.expander("System Prompts", expanded=False):
+    with st.expander("Judge Prompts", expanded=False):
         st.caption(
-            "Edit the AXIOM rule checks, NOVA / VERA judge prompts, "
-            "or ATHENA investigator persona. Changes apply to the current "
-            "session only and reset on page refresh."
+            "Edit the AXIOM rule checks or NOVA / VERA judge prompts. "
+            "Changes apply to the current session only and reset on page "
+            "refresh."
         )
         _sp_tabs = st.tabs([
             "⚙️ AXIOM Rules",
             "🧠 NOVA Judge",
             "🔬 VERA Judge",
-            f"{config.PERSONAS['athena']['icon']} ATHENA",
         ])
-
-        # ── ATHENA tab ────────────────────────────────────────────────────────
-        _key = "athena"
-        _persona = config.PERSONAS[_key]
-        with _sp_tabs[3]:
-            _is_editing = st.session_state.get(
-                f"editing_persona_{_key}", False
-            )
-            _modified = (
-                _persona["system_prompt"]
-                != st.session_state.original_persona_prompts.get(_key)
-            )
-            _hcol, _bcol = st.columns([6, 1])
-            with _hcol:
-                st.markdown(
-                    f"<div style='color:{_persona['color']};"
-                    f"font-weight:700;font-size:1rem;"
-                    f"letter-spacing:0.05em;margin-bottom:2px'>"
-                    f"{_persona['icon']} {_persona['display_name']}"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-            with _bcol:
-                if _modified:
-                    st.warning("Modified", icon="✏️")
-
-            if _is_editing:
-                st.text_area(
-                    "System prompt",
-                    key=f"draft_persona_{_key}",
-                    height=420,
-                    label_visibility="collapsed",
-                )
-                _bc1, _bc2, _bc3, _ = st.columns([1, 1, 1, 5])
-                if _bc1.button("Save", key=f"save_persona_{_key}",
-                               type="primary"):
-                    config.PERSONAS[_key]["system_prompt"] = (
-                        st.session_state[f"draft_persona_{_key}"]
-                    )
-                    st.session_state[f"editing_persona_{_key}"] = False
-                    st.rerun()
-                if _bc2.button("Cancel", key=f"cancel_persona_{_key}"):
-                    st.session_state[f"editing_persona_{_key}"] = False
-                    st.rerun()
-                if _bc3.button("Reset", key=f"reset_persona_{_key}"):
-                    config.PERSONAS[_key]["system_prompt"] = (
-                        config._ORIGINAL_PERSONAS[_key]["system_prompt"]
-                    )
-                    st.session_state[f"editing_persona_{_key}"] = False
-                    st.rerun()
-            else:
-                st.text_area(
-                    "System prompt",
-                    value=_persona["system_prompt"],
-                    height=420,
-                    disabled=True,
-                    label_visibility="collapsed",
-                )
-                _eb, _ = st.columns([1, 7])
-                if _eb.button("✏️ Edit", key=f"edit_persona_{_key}"):
-                    st.session_state[f"editing_persona_{_key}"] = True
-                    st.session_state[f"draft_persona_{_key}"] = (
-                        _persona["system_prompt"]
-                    )
-                    st.rerun()
 
         # ── NOVA Judge tab ────────────────────────────────────────────────────
         with _sp_tabs[1]:
@@ -1515,13 +1478,18 @@ with tab_files:
             if _nova_modified:
                 st.info("Modified from original.")
             if st.session_state.editing_judge_prompt:
+                if st.session_state.get("_improve_judge_prompt"):
+                    st.session_state["draft_judge_prompt"] = (
+                        evaluator.JUDGE_PROMPT_SCOPE_ENHANCED
+                    )
+                    st.session_state["_improve_judge_prompt"] = False
                 st.text_area(
                     "NOVA judge prompt",
                     key="draft_judge_prompt",
                     height=500,
                     label_visibility="collapsed",
                 )
-                _jc1, _jc2, _jc3, _ = st.columns([1, 1, 2, 4])
+                _jc1, _jc2, _jc3, _jc4, _ = st.columns([1, 1, 2, 2, 2])
                 if _jc1.button(
                     "Save", key="save_judge_prompt", type="primary"
                 ):
@@ -1541,28 +1509,26 @@ with tab_files:
                     )
                     st.session_state.editing_judge_prompt = False
                     st.rerun()
+                if _jc4.button(
+                    "Improve Prompt",
+                    key="apply_scope_enhancement",
+                    help=(
+                        "Loads an enhanced prompt that adds a scope-check "
+                        "criterion to the judge. Without it, ATHENA can cite "
+                        "the wrong evidence source and still pass — e.g. "
+                        "answering about museum CCTV when the question asks "
+                        "about society CCTV. Review before saving."
+                    ),
+                ):
+                    st.session_state["_improve_judge_prompt"] = True
+                    st.rerun()
             else:
                 st.code(evaluator.JUDGE_PROMPT_TEMPLATE, language=None)
-                _jeb, _jsb, _ = st.columns([1, 2, 5])
+                _jeb, _ = st.columns([1, 7])
                 if _jeb.button("✏️ Edit", key="edit_judge_prompt"):
                     st.session_state.editing_judge_prompt = True
                     st.session_state["draft_judge_prompt"] = (
                         evaluator.JUDGE_PROMPT_TEMPLATE
-                    )
-                    st.rerun()
-                if _jsb.button(
-                    "⚡ Add scope check",
-                    key="apply_scope_enhancement",
-                    help=(
-                        "Adds answer_addresses_question_scope to correctness "
-                        "criteria. Catches responses that answer about a "
-                        "different evidence source than the question asks about "
-                        "(e.g. museum CCTV vs society CCTV)."
-                    ),
-                ):
-                    st.session_state.editing_judge_prompt = True
-                    st.session_state["draft_judge_prompt"] = (
-                        evaluator.JUDGE_PROMPT_SCOPE_ENHANCED
                     )
                     st.rerun()
 
